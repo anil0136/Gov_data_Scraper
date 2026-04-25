@@ -1,0 +1,122 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>GovScraper Dashboard</title>
+    <link rel="stylesheet" href="{% static 'scraper/css/home.css' %}">
+    <script src="{% static 'scraper/js/home.js' %}" defer></script>
+</head>
+<body>
+    <header class="app-header">
+        <nav class="topbar" aria-label="Primary navigation">
+            <a class="brand" href="/">
+                <span class="brand-mark">GS</span>
+                <span>
+                    <strong>GovScraper</strong>
+                    <small>Public data intelligence</small>
+                </span>
+            </a>
+            <div class="top-actions">
+                <a class="button ghost" href="/admin/">Admin</a>
+                <a class="button primary" href="/run-all/">Run scraper</a>
+            </div>
+        </nav>
+
+        <section class="hero">
+            <div class="hero-copy">
+                <p class="eyebrow">Automated government data collection</p>
+                <h1>Scraped data dashboard</h1>
+                <p>Browse clean records from UMANG, Services India, myScheme, scholarships, grants, and India Portal in one place.</p>
+            </div>
+
+            <div class="summary-grid" aria-label="Scraping summary">
+                <article class="summary-card">
+                    <span>Sources</span>
+                    <strong>{{ stats.sources }}</strong>
+                </article>
+                <article class="summary-card">
+                    <span>Records saved</span>
+                    <strong>{{ stats.total_saved }}</strong>
+                </article>
+                <article class="summary-card">
+                    <span>Records shown</span>
+                    <strong>{{ stats.total_shown }}</strong>
+                </article>
+                <article class="summary-card warning">
+                    <span>Hidden noise</span>
+                    <strong>{{ stats.total_hidden }}</strong>
+                </article>
+            </div>
+        </section>
+    </header>
+
+    <main class="dashboard">
+        <section class="control-panel" aria-label="Dashboard controls">
+            <div class="search-box">
+                <label for="dashboardSearch">Search saved records</label>
+                <input id="dashboardSearch" type="search" placeholder="Search title, category, provider, amount...">
+            </div>
+
+            <div class="section-filters" aria-label="Filter by source">
+                <button class="filter-chip is-active" type="button" data-section-filter="all">All</button>
+                {% for section in sections %}
+                    <button class="filter-chip" type="button" data-section-filter="{{ section.slug }}">{{ section.title }}</button>
+                {% endfor %}
+            </div>
+        </section>
+
+        <p class="result-status" id="resultStatus" aria-live="polite"></p>
+
+        {% for section in sections %}
+            <section class="data-section" id="{{ section.slug }}" data-section="{{ section.slug }}">
+                <div class="section-head">
+                    <div>
+                        <p class="section-label">Source</p>
+                        <h2>{{ section.title }}</h2>
+                    </div>
+                    <div class="section-counts">
+                        <strong>{{ section.clean_count }}</strong>
+                        <span>shown from {{ section.total_count }} saved</span>
+                    </div>
+                </div>
+
+                {% if section.items %}
+                    <div class="grid">
+                        {% for item in section.items %}
+                            <article class="record-card" data-search="{{ item.title }} {{ item.description }}{% for meta in item.meta %} {{ meta.value }}{% endfor %}">
+                                {% if item.image_url %}
+                                    <div class="record-media">
+                                        <img src="{{ item.image_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.parentElement.style.display='none';">
+                                    </div>
+                                {% endif %}
+
+                                <div class="record-main">
+                                    <h3>{{ item.title }}</h3>
+
+                                    {% if item.description %}
+                                        <p>{{ item.description }}</p>
+                                    {% endif %}
+                                </div>
+
+                                {% if item.meta %}
+                                    <div class="meta">
+                                        {% for meta in item.meta %}
+                                            <span class="pill">{{ meta.label }}: {{ meta.value }}</span>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+
+                                <a class="source-link" href="{{ item.url }}" target="_blank" rel="noopener">Open source</a>
+                            </article>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="empty">No clean data saved yet. Scraping may still be running.</p>
+                {% endif %}
+            </section>
+        {% endfor %}
+    </main>
+</body>
+</html>
