@@ -1,11 +1,9 @@
 Django
-dj-database-url
 gunicorn
 selenium
 webdriver-manager
 requests
 beautifulsoup4
 Pillow
-psycopg[binary]
-PyMySQL
+pymongo[srv]
 whitenoise

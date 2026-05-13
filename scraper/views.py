@@ -1,8 +1,8 @@
 from django.http import JsonResponse
 from django.shortcuts import render
 
-from .models import GovService, Grant, IndiaScheme, MyScheme, Scholarship, UmangScheme
-from .startup import start_scraper_once
+from .mongo import count_records, latest_records
+from .startup import get_scraper_status, start_scraper_once
 
 
 BAD_DISPLAY_PARTS = (
@@ -76,12 +76,28 @@ def _short_text(value, limit=180):
     return value[:limit].rstrip() + "..."
 
 
+def _item_kind(item):
+    kind = getattr(item, "kind", "")
+    if kind:
+        return kind
+
+    return {
+        "UmangScheme": "umang",
+        "GovService": "gov",
+        "MyScheme": "myscheme",
+        "IndiaScheme": "india",
+        "Scholarship": "scholarships",
+        "Grant": "grants",
+        "TenderListing": "tenders",
+    }.get(item.__class__.__name__, "")
+
+
 def _display_image_url(item):
     image_url = _clean_text(getattr(item, "image_url", "") or "")
     if not image_url:
         return ""
 
-    if isinstance(item, Scholarship):
+    if _item_kind(item) == "scholarships":
         provider = _clean_text(getattr(item, "provider", "") or "")
         url = _clean_text(getattr(item, "url", "") or "").lower()
 
@@ -98,7 +114,7 @@ def _source_url(item):
 
     # UMANG records currently only store category SPA URLs, not per-record source pages.
     # Those web.umang.gov.in URLs commonly open as CloudFront 403 pages when clicked directly.
-    if isinstance(item, UmangScheme) or "web.umang.gov.in" in lowered:
+    if _item_kind(item) == "umang" or "web.umang.gov.in" in lowered:
         return ""
 
     return url
@@ -108,7 +124,8 @@ def _is_displayable(item):
     title = _clean_text(getattr(item, "title", ""))
     lowered = title.lower()
     description = _clean_text(getattr(item, "description", "") or "")
-    is_scholarship = isinstance(item, Scholarship)
+    kind = _item_kind(item)
+    is_scholarship = kind == "scholarships"
 
     if not title or len(title) < 8:
         return False
@@ -126,7 +143,7 @@ def _is_displayable(item):
         return False
     if title.endswith("More") and not description:
         return False
-    if isinstance(item, GovService):
+    if kind == "gov":
         has_detail = any(
             [
                 description,
@@ -136,7 +153,7 @@ def _is_displayable(item):
         )
         if not has_detail:
             return False
-    if isinstance(item, MyScheme):
+    if kind == "myscheme":
         has_detail = any(
             [
                 description,
@@ -185,11 +202,11 @@ def _card_from_item(item, meta_fields=(), description_field="description"):
     }
 
 
-def _section(title, queryset, meta_fields=(), description_field="description"):
-    total_count = queryset.count()
+def _section(title, kind, meta_fields=(), description_field="description"):
+    total_count = count_records(kind)
     clean_items = [
         _card_from_item(item, meta_fields=meta_fields, description_field=description_field)
-        for item in queryset.order_by("-id")
+        for item in latest_records(kind)
         if _is_displayable(item)
     ]
 
@@ -217,10 +234,10 @@ def _serialize_item(item, fields):
     }
 
 
-def _api_response(request, source, queryset, fields):
+def _api_response(request, source, kind, fields):
     items = [
         _serialize_item(item, fields)
-        for item in queryset.order_by("-id")
+        for item in latest_records(kind)
     ]
     return JsonResponse({
         "source": source,
@@ -237,6 +254,7 @@ def api_index(request):
         "india_portal_schemes": _absolute_request_url(request, "/api/india-portal-schemes/"),
         "scholarships": _absolute_request_url(request, "/api/scholarships/"),
         "grants": _absolute_request_url(request, "/api/grants/"),
+        "scraper_status": _absolute_request_url(request, "/api/scraper-status/"),
     }
     return JsonResponse({"endpoints": endpoints})
 
@@ -245,7 +263,7 @@ def api_umang_schemes(request):
     return _api_response(
         request,
         "UMANG Schemes",
-        UmangScheme.objects.all(),
+        "umang",
         ("id", "title", "description", "category", "department", "url"),
     )
 
@@ -254,7 +272,7 @@ def api_government_services(request):
     return _api_response(
         request,
         "Government Services",
-        GovService.objects.all(),
+        "gov",
         ("id", "title", "service_type", "department", "description", "url"),
     )
 
@@ -263,7 +281,7 @@ def api_myscheme(request):
     return _api_response(
         request,
         "myScheme",
-        MyScheme.objects.all(),
+        "myscheme",
         (
             "id",
             "title",
@@ -288,7 +306,7 @@ def api_india_portal_schemes(request):
     return _api_response(
         request,
         "India Portal Schemes",
-        IndiaScheme.objects.all(),
+        "india",
         ("id", "title", "description", "ministry", "category", "url"),
     )
 
@@ -297,7 +315,7 @@ def api_scholarships(request):
     return _api_response(
         request,
         "Scholarships",
-        Scholarship.objects.all(),
+        "scholarships",
         ("id", "title", "provider", "deadline", "amount", "image_url", "url"),
     )
 
@@ -306,41 +324,45 @@ def api_grants(request):
     return _api_response(
         request,
         "Grants",
-        Grant.objects.all(),
+        "grants",
         ("id", "title", "organization", "description", "funding_amount", "url"),
     )
+
+
+def api_scraper_status(request):
+    return JsonResponse(get_scraper_status())
 
 
 def home(request):
     sections = [
         _section(
             "UMANG Schemes",
-            UmangScheme.objects.all(),
+            "umang",
             meta_fields=(("Category", "category"), ("Department", "department")),
         ),
         _section(
             "Government Services",
-            GovService.objects.all(),
+            "gov",
             meta_fields=(("Type", "service_type"), ("Department", "department")),
         ),
         _section(
             "myScheme",
-            MyScheme.objects.all(),
+            "myscheme",
             meta_fields=(("Category", "category"), ("Level", "level"), ("Ministry", "ministry")),
         ),
         _section(
             "India Portal Schemes",
-            IndiaScheme.objects.all(),
+            "india",
             meta_fields=(("Category", "category"), ("Ministry", "ministry")),
         ),
         _section(
             "Scholarships",
-            Scholarship.objects.all(),
+            "scholarships",
             meta_fields=(("Provider", "provider"), ("Deadline", "deadline"), ("Award", "amount")),
         ),
         _section(
             "Grants",
-            Grant.objects.all(),
+            "grants",
             meta_fields=(("Organization", "organization"), ("Funding", "funding_amount")),
         ),
     ]

@@ -1,14 +1,16 @@
-from django.test import TestCase
+from unittest.mock import patch
+
+from django.test import SimpleTestCase
 
 from bs4 import BeautifulSoup
 
+from .mongo import MongoRecord
 from .scrapers.scholarship import _parse_buddy4study_items, _parse_wemakescholars_cards
 from .scrapers.tenders import _parse_tenderkart_cards, _parse_tendersontime_results
 from .views import _is_displayable
-from .models import GovService, MyScheme, Scholarship
 
 
-class TenderParserTests(TestCase):
+class TenderParserTests(SimpleTestCase):
     def test_parse_tendersontime_results(self):
         payload = {
             "searchdata": [
@@ -73,7 +75,7 @@ class TenderParserTests(TestCase):
         self.assertEqual(rows[0]["category"], "CIVIL WORKS")
 
 
-class ScholarshipParserTests(TestCase):
+class ScholarshipParserTests(SimpleTestCase):
     def test_parse_wemakescholars_cards(self):
         html = """
         <div class="post featured_post">
@@ -143,31 +145,37 @@ class ScholarshipParserTests(TestCase):
         self.assertEqual(rows[0]["image_url"], "https://cdn.example.com/logo.jpeg")
 
 
-class ScholarshipDisplayTests(TestCase):
+class ScholarshipDisplayTests(SimpleTestCase):
     def test_hide_old_listing_page_noise(self):
-        item = Scholarship(
-            title="By Subject",
-            provider="",
-            deadline="",
-            amount="",
-            image_url="",
-            url="https://www.wemakescholars.com/scholarship",
+        item = MongoRecord(
+            "scholarships",
+            {
+                "title": "By Subject",
+                "provider": "",
+                "deadline": "",
+                "amount": "",
+                "image_url": "",
+                "url": "https://www.wemakescholars.com/scholarship",
+            },
         )
         self.assertFalse(_is_displayable(item))
 
     def test_show_real_scholarship_without_logo(self):
-        item = Scholarship(
-            title="Google Phd Fellowship India Program 2026",
-            provider="Buddy4Study",
-            deadline="",
-            amount="Up to USD 50,000",
-            image_url="",
-            url="https://www.buddy4study.com/scholarship/google-phd-fellowship-india-program-2026",
+        item = MongoRecord(
+            "scholarships",
+            {
+                "title": "Google Phd Fellowship India Program 2026",
+                "provider": "Buddy4Study",
+                "deadline": "",
+                "amount": "Up to USD 50,000",
+                "image_url": "",
+                "url": "https://www.buddy4study.com/scholarship/google-phd-fellowship-india-program-2026",
+            },
         )
         self.assertTrue(_is_displayable(item))
 
 
-class SchemeApiTests(TestCase):
+class SchemeApiTests(SimpleTestCase):
     def test_api_index_lists_scheme_urls(self):
         response = self.client.get("/api/")
 
@@ -179,17 +187,25 @@ class SchemeApiTests(TestCase):
         self.assertIn("india_portal_schemes", endpoints)
         self.assertIn("scholarships", endpoints)
         self.assertIn("grants", endpoints)
+        self.assertIn("scraper_status", endpoints)
 
     def test_government_services_api_returns_saved_rows(self):
-        GovService.objects.create(
-            title="Apply for example service",
-            service_type="Online",
-            department="Example Department",
-            description="Example description",
-            url="https://example.com/service",
-        )
+        records = [
+            MongoRecord(
+                "gov",
+                {
+                    "_id": "gov-1",
+                    "title": "Apply for example service",
+                    "service_type": "Online",
+                    "department": "Example Department",
+                    "description": "Example description",
+                    "url": "https://example.com/service",
+                },
+            )
+        ]
 
-        response = self.client.get("/api/government-services/")
+        with patch("scraper.views.latest_records", return_value=records):
+            response = self.client.get("/api/government-services/")
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -199,28 +215,62 @@ class SchemeApiTests(TestCase):
         self.assertEqual(payload["results"][0]["url"], "https://example.com/service")
 
     def test_myscheme_api_includes_detail_fields(self):
-        MyScheme.objects.create(
-            title="Example myScheme",
-            description="Description",
-            eligibility="Eligibility",
-            benefits="Benefits",
-            category="Category",
-            ministry="Ministry",
-            department="Department",
-            level="State",
-            tags="tag",
-            application_process="Apply online",
-            documents="Documents",
-            references="References",
-            raw_data={"source": "test"},
-            url="https://example.com/myscheme",
-        )
+        records = [
+            MongoRecord(
+                "myscheme",
+                {
+                    "_id": "myscheme-1",
+                    "title": "Example myScheme",
+                    "description": "Description",
+                    "eligibility": "Eligibility",
+                    "benefits": "Benefits",
+                    "category": "Category",
+                    "ministry": "Ministry",
+                    "department": "Department",
+                    "level": "State",
+                    "tags": "tag",
+                    "application_process": "Apply online",
+                    "documents": "Documents",
+                    "references": "References",
+                    "raw_data": {"source": "test"},
+                    "url": "https://example.com/myscheme",
+                },
+            )
+        ]
 
-        response = self.client.get("/api/myscheme/")
+        with patch("scraper.views.latest_records", return_value=records):
+            response = self.client.get("/api/myscheme/")
 
         self.assertEqual(response.status_code, 200)
         result = response.json()["results"][0]
         self.assertEqual(result["eligibility"], "Eligibility")
         self.assertEqual(result["raw_data"], {"source": "test"})
+
+    def test_scraper_status_api_returns_progress(self):
+        with patch(
+            "scraper.views.get_scraper_status",
+            return_value={
+                "enabled": True,
+                "is_running": True,
+                "cycle": 2,
+                "processed": 5,
+                "total": 10,
+                "percent": 50,
+                "current_source": "GOV",
+                "current_url": "https://example.com",
+                "message": "Scraping GOV...",
+                "last_started_at": "2026-05-13T07:30:00Z",
+                "last_completed_at": "",
+                "next_run_at": "",
+                "error": "",
+            },
+        ):
+            response = self.client.get("/api/scraper-status/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["percent"], 50)
+        self.assertTrue(payload["is_running"])
+        self.assertEqual(payload["current_source"], "GOV")
 
 # Create your tests here.

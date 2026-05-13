@@ -5,6 +5,7 @@ from .views import (
     api_index,
     api_india_portal_schemes,
     api_myscheme,
+    api_scraper_status,
     api_scholarships,
     api_umang_schemes,
     home,
@@ -21,4 +22,5 @@ urlpatterns = [
     path('api/india-portal-schemes/', api_india_portal_schemes, name='api-india-portal-schemes'),
     path('api/scholarships/', api_scholarships, name='api-scholarships'),
     path('api/grants/', api_grants, name='api-grants'),
+    path('api/scraper-status/', api_scraper_status, name='api-scraper-status'),
 ]

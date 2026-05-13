@@ -14,8 +14,6 @@ import os
 from pathlib import Path
 from urllib.parse import urlparse
 
-import dj_database_url
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -70,11 +68,6 @@ SECURE_HSTS_PRELOAD = not DEBUG
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
     'django.contrib.staticfiles',
     'scraper',
 ]
@@ -82,11 +75,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -100,8 +90,6 @@ TEMPLATES = [
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
             ],
         },
     },
@@ -110,22 +98,20 @@ TEMPLATES = [
 WSGI_APPLICATION = 'govscraper.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+MONGODB_URI = os.environ.get(
+    'MONGODB_URI',
+    'mongodb+srv://hypersagetech:7oDb5EZK9YnnBSkl@salon.ovdjb.mongodb.net/formease?retryWrites=true&w=majority&appName=formease',
+)
+MONGODB_DATABASE = os.environ.get(
+    'MONGODB_DATABASE',
+    urlparse(MONGODB_URI).path.strip('/') or 'govscraper',
+)
 
-DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
-DATABASE_SCHEME = urlparse(DATABASE_URL).scheme
-if DATABASE_URL and DATABASE_SCHEME:
-    DATABASES = {
-        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600),
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.dummy',
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+}
 
 
 # Password validation

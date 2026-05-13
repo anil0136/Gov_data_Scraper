@@ -12,16 +12,18 @@ from .services import *
 
 
 def _save_scraped_data(label, data, save_function):
-    print(f"    {label} scraping successful. Starting to store data into MySQL...")
+    print(f"    {label} scraping successful. Starting to store data into MongoDB...")
     save_function(data)
-    print(f"    {label} data saved successfully to MySQL.")
+    print(f"    {label} data saved successfully to MongoDB.")
 
 
-def run_all_scrapers():
+def run_all_scrapers(progress_callback=None):
     total_urls = len(UMANG_URLS) + len(GOV_URLS) + len(MYSCHEME_URLS) + len(INDIA_URLS) + len(SCHOLARSHIP_URLS) + len(GRANT_URLS) + len(TENDER_URLS)
     processed = 0
 
     print(f"Starting scraping of {total_urls} URLs...")
+    if progress_callback:
+        progress_callback(processed=processed, total=total_urls, source="", url="")
 
     # 🅰️ UMANG
     print(f"Processing UMANG ({len(UMANG_URLS)} URLs)...")
@@ -30,6 +32,8 @@ def run_all_scrapers():
         data = scrape_umang(url)
         _save_scraped_data("UMANG", data, save_umang)
         processed += 1
+        if progress_callback:
+            progress_callback(processed=processed, total=total_urls, source="UMANG", url=url)
         print(f"    Saved {len(data)} items. Total processed: {processed}/{total_urls}")
 
     # 🅱️ GOV
@@ -39,6 +43,8 @@ def run_all_scrapers():
         data = scrape_gov(url)
         _save_scraped_data("GOV", data, save_gov)
         processed += 1
+        if progress_callback:
+            progress_callback(processed=processed, total=total_urls, source="GOV", url=url)
         print(f"    Saved {len(data)} items. Total processed: {processed}/{total_urls}")
 
     # 🅲 MYSCHEME
@@ -48,6 +54,8 @@ def run_all_scrapers():
         data = scrape_myscheme(url)
         _save_scraped_data("MYSCHEME", data, save_myscheme)
         processed += 1
+        if progress_callback:
+            progress_callback(processed=processed, total=total_urls, source="MYSCHEME", url=url)
         print(f"    Saved {len(data)} items. Total processed: {processed}/{total_urls}")
 
     # 🅳 INDIA
@@ -57,6 +65,8 @@ def run_all_scrapers():
         data = scrape_india(url)
         _save_scraped_data("INDIA", data, save_india)
         processed += 1
+        if progress_callback:
+            progress_callback(processed=processed, total=total_urls, source="INDIA", url=url)
         print(f"    Saved {len(data)} items. Total processed: {processed}/{total_urls}")
 
     # 🅴 SCHOLARSHIP
@@ -66,6 +76,8 @@ def run_all_scrapers():
         data = scrape_scholarship(url)
         _save_scraped_data("SCHOLARSHIP", data, save_scholarship)
         processed += 1
+        if progress_callback:
+            progress_callback(processed=processed, total=total_urls, source="SCHOLARSHIP", url=url)
         print(f"    Saved {len(data)} items. Total processed: {processed}/{total_urls}")
 
     # 🅵 GRANTS
@@ -75,6 +87,8 @@ def run_all_scrapers():
         data = scrape_grants(url)
         _save_scraped_data("GRANTS", data, save_grants)
         processed += 1
+        if progress_callback:
+            progress_callback(processed=processed, total=total_urls, source="GRANTS", url=url)
         print(f"    Saved {len(data)} items. Total processed: {processed}/{total_urls}")
 
     # TENDERS
@@ -84,7 +98,9 @@ def run_all_scrapers():
         data = scrape_tenders(source_name, url)
         _save_scraped_data("TENDERS", data, save_tender_listings)
         processed += 1
+        if progress_callback:
+            progress_callback(processed=processed, total=total_urls, source=f"TENDERS: {source_name}", url=url)
         print(f"    Saved {len(data)} items. Total processed: {processed}/{total_urls}")
 
     print(f"Scraping completed! Total URLs processed: {processed}")
-    print("Scrape successfully. Data stored to MySQL database successfully.")
+    print("Scrape successfully. Data stored to MongoDB successfully.")

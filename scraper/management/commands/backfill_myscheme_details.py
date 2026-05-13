@@ -2,9 +2,8 @@ import time
 from urllib.parse import urlparse
 
 from django.core.management.base import BaseCommand
-from django.db import OperationalError, connection
 
-from scraper.models import MyScheme
+from scraper.mongo import find_records, upsert_one
 from scraper.scrapers.common import get_session
 from scraper.scrapers.myscheme import MYSCHEME_API_KEY, _fetch_detail, _merge_detail
 
@@ -17,9 +16,6 @@ class Command(BaseCommand):
         parser.add_argument("--delay", type=float, default=1.0)
 
     def handle(self, *args, **options):
-        with connection.cursor() as cursor:
-            cursor.execute("PRAGMA busy_timeout = 15000")
-
         session = get_session(extra_headers={
             "Accept": "application/json, text/plain, */*",
             "Origin": "https://www.myscheme.gov.in",
@@ -27,20 +23,15 @@ class Command(BaseCommand):
             "x-api-key": MYSCHEME_API_KEY,
         })
 
-        ids = list(
-            MyScheme.objects.filter(raw_data={})
-            .order_by("id")
-            .values_list("id", flat=True)
-        )
+        rows = find_records("myscheme", {"raw_data": {}})
         if options["limit"]:
-            ids = ids[:options["limit"]]
+            rows = rows[:options["limit"]]
 
-        total = len(ids)
+        total = len(rows)
         updated = 0
         failed = 0
 
-        for index, row_id in enumerate(ids, 1):
-            row = MyScheme.objects.get(id=row_id)
+        for index, row in enumerate(rows, 1):
             slug = urlparse(row.url or "").path.rstrip("/").split("/")[-1]
             if not slug:
                 failed += 1
@@ -67,32 +58,12 @@ class Command(BaseCommand):
             try:
                 detail = _fetch_detail(session, slug)
                 parsed = _merge_detail(parsed, detail)
-                for key, value in parsed.items():
-                    if key != "_slug" and hasattr(row, key):
-                        setattr(row, key, value)
-                row.save(update_fields=[
-                    "title",
-                    "description",
-                    "eligibility",
-                    "benefits",
-                    "category",
-                    "ministry",
-                    "department",
-                    "level",
-                    "tags",
-                    "application_process",
-                    "documents",
-                    "references",
-                    "raw_data",
-                    "url",
-                ])
+                parsed.pop("_slug", None)
+                upsert_one("myscheme", {"_id": row.data["_id"]}, parsed)
                 updated += 1
-            except OperationalError as exc:
-                failed += 1
-                self.stderr.write(f"DB locked for {row_id} {slug}: {exc}")
             except Exception as exc:
                 failed += 1
-                self.stderr.write(f"Failed {row_id} {slug}: {type(exc).__name__}: {exc}")
+                self.stderr.write(f"Failed {row.id} {slug}: {type(exc).__name__}: {exc}")
 
             if index % 25 == 0 or index == total:
                 self.stdout.write(f"progress {index}/{total}, updated={updated}, failed={failed}")
