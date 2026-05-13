@@ -1,7 +1,15 @@
 from dataclasses import dataclass
 
 from django.conf import settings
-from pymongo import ASCENDING, DESCENDING, MongoClient
+
+try:
+    from pymongo import ASCENDING, DESCENDING, MongoClient
+    _PYMONGO_IMPORT_ERROR = None
+except ImportError as exc:
+    ASCENDING = 1
+    DESCENDING = -1
+    MongoClient = None
+    _PYMONGO_IMPORT_ERROR = exc
 
 
 COLLECTIONS = {
@@ -33,6 +41,10 @@ _indexes_ready = False
 
 def get_client():
     global _client
+    if MongoClient is None:
+        raise RuntimeError(
+            "pymongo is not installed. Add it to the deployment environment before using MongoDB."
+        ) from _PYMONGO_IMPORT_ERROR
     if _client is None:
         _client = MongoClient(settings.MONGODB_URI, serverSelectionTimeoutMS=10000)
     return _client
@@ -93,9 +105,15 @@ def find_records(kind, query=None, sort=None):
 
 
 def count_records(kind, query=None):
-    ensure_indexes()
-    return collection(kind).count_documents(query or {})
+    try:
+        ensure_indexes()
+        return collection(kind).count_documents(query or {})
+    except Exception:
+        return 0
 
 
 def latest_records(kind):
-    return find_records(kind, sort=[("_id", DESCENDING)])
+    try:
+        return find_records(kind, sort=[("_id", DESCENDING)])
+    except Exception:
+        return []
