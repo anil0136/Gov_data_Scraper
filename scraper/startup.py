@@ -7,7 +7,8 @@ from datetime import datetime, timedelta, timezone
 _scraper_started = False
 _scraper_lock = threading.Lock()
 _status_lock = threading.Lock()
-_repeat_delay_seconds = 60
+_repeat_delay_hours = int(os.environ.get("GOVSCRAPER_REPEAT_HOURS", "5"))
+_repeat_delay_seconds = max(1, _repeat_delay_hours) * 60 * 60
 _scraper_status = {
     "enabled": True,
     "is_running": False,
@@ -36,6 +37,11 @@ def _iso(value):
 def _set_status(**updates):
     with _status_lock:
         _scraper_status.update(updates)
+
+
+def _next_run_message(prefix):
+    hours_label = "hour" if _repeat_delay_hours == 1 else "hours"
+    return f"{prefix} Next run starts in {_repeat_delay_hours} {hours_label}."
 
 
 def get_scraper_status():
@@ -90,7 +96,7 @@ def _run_scraper_loop():
             _set_status(
                 is_running=False,
                 percent=100,
-                message="Scraping complete. Next run starts in 1 minute.",
+                message=_next_run_message("Scraping complete."),
                 last_completed_at=_iso(completed_at),
                 next_run_at=_iso(next_run_at),
                 error="",
@@ -101,7 +107,7 @@ def _run_scraper_loop():
             next_run_at = completed_at + timedelta(seconds=_repeat_delay_seconds)
             _set_status(
                 is_running=False,
-                message="Scraping failed. Next run starts in 1 minute.",
+                message=_next_run_message("Scraping failed."),
                 last_completed_at=_iso(completed_at),
                 next_run_at=_iso(next_run_at),
                 error=str(exc),
