@@ -41,11 +41,11 @@
                     <strong>{{ stats.total_saved }}</strong>
                 </article>
                 <article class="summary-card">
-                    <span>Records shown</span>
+                    <span>Preview shown</span>
                     <strong>{{ stats.total_shown }}</strong>
                 </article>
                 <article class="summary-card warning">
-                    <span>Hidden noise</span>
+                    <span>Hidden in preview</span>
                     <strong>{{ stats.total_hidden }}</strong>
                 </article>
             </div>
@@ -79,7 +79,7 @@
                     </div>
                     <div class="section-counts">
                         <strong>{{ section.clean_count }}</strong>
-                        <span>shown from {{ section.total_count }} saved</span>
+                        <span>shown from {{ section.checked_count }} checked / {{ section.total_count }} saved</span>
                     </div>
                 </div>
 

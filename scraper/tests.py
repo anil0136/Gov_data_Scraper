@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 from .mongo import MongoRecord
 from .scrapers.scholarship import _parse_buddy4study_items, _parse_wemakescholars_cards
 from .scrapers.tenders import _parse_tenderkart_cards, _parse_tendersontime_results
-from .views import _is_displayable
+from .views import _is_displayable, _section
 
 
 class TenderParserTests(SimpleTestCase):
@@ -173,6 +173,45 @@ class ScholarshipDisplayTests(SimpleTestCase):
             },
         )
         self.assertTrue(_is_displayable(item))
+
+
+class DashboardSectionTests(SimpleTestCase):
+    def test_hidden_count_only_counts_loaded_preview_noise(self):
+        records = [
+            MongoRecord(
+                "gov",
+                {
+                    "_id": "gov-1",
+                    "title": "Apply for example service",
+                    "service_type": "Online",
+                    "department": "Example Department",
+                    "description": "Example description",
+                    "url": "https://example.com/service",
+                },
+            ),
+            MongoRecord(
+                "gov",
+                {
+                    "_id": "gov-2",
+                    "title": "HomeAll Categories",
+                    "service_type": "",
+                    "department": "",
+                    "description": "",
+                    "url": "https://example.com/noise",
+                },
+            ),
+        ]
+
+        with patch("scraper.views.count_records", return_value=25000), patch(
+            "scraper.views.latest_records",
+            return_value=records,
+        ):
+            section = _section("Government Services", "gov")
+
+        self.assertEqual(section["total_count"], 25000)
+        self.assertEqual(section["checked_count"], 2)
+        self.assertEqual(section["clean_count"], 1)
+        self.assertEqual(section["hidden_count"], 1)
 
 
 class SchemeApiTests(SimpleTestCase):

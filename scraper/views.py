@@ -396,18 +396,21 @@ def _card_from_item(item, meta_fields=(), description_field="description"):
 
 def _section(title, kind, meta_fields=(), description_field="description", display_limit=24):
     total_count = count_records(kind)
+    preview_items = latest_records(kind, limit=display_limit)
     clean_items = [
         _card_from_item(item, meta_fields=meta_fields, description_field=description_field)
-        for item in latest_records(kind, limit=display_limit)
+        for item in preview_items
         if _is_displayable(item)
     ]
+    checked_count = len(preview_items)
 
     return {
         "title": title,
         "slug": title.lower().replace(" ", "-"),
         "total_count": total_count,
+        "checked_count": checked_count,
         "clean_count": len(clean_items),
-        "hidden_count": total_count - len(clean_items),
+        "hidden_count": checked_count - len(clean_items),
         "items": clean_items,
     }
 
