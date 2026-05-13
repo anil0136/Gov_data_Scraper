@@ -5,8 +5,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>GovScraper Dashboard</title>
-    <link rel="stylesheet" href="{% static 'scraper/css/home.css' %}?v=11">
-    <script src="{% static 'scraper/js/home.js' %}?v=11" defer></script>
+    <link rel="stylesheet" href="{% static 'scraper/css/home.css' %}?v=13">
+    <script src="{% static 'scraper/js/home.js' %}?v=13" defer></script>
 </head>
 <body>
     <header class="app-header">
@@ -71,7 +71,7 @@
         <p class="result-status" id="resultStatus" aria-live="polite"></p>
 
         {% for section in sections %}
-            <section class="data-section" id="{{ section.slug }}" data-section="{{ section.slug }}">
+            <section class="data-section" id="{{ section.slug }}" data-section="{{ section.slug }}" data-kind="{{ section.kind }}" data-next-offset="{{ section.checked_count }}" data-total-count="{{ section.total_count }}" data-checked-count="{{ section.checked_count }}" data-clean-count="{{ section.clean_count }}">
                 <div class="section-head">
                     <div>
                         <p class="section-label">Source</p>
@@ -83,40 +83,40 @@
                     </div>
                 </div>
 
-                {% if section.items %}
-                    <div class="grid">
-                        {% for item in section.items %}
-                            <article class="record-card" data-search="{{ item.title }} {{ item.description }}{% for meta in item.meta %} {{ meta.value }}{% endfor %}">
-                                {% if item.image_url %}
-                                    <div class="record-media">
-                                        <img src="{{ item.image_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.parentElement.style.display='none';">
-                                    </div>
-                                {% endif %}
-
-                                <div class="record-main">
-                                    <h3>{{ item.title }}</h3>
-
-                                    {% if item.description %}
-                                        <p>{{ item.description }}</p>
-                                    {% endif %}
+                <div class="grid" data-record-grid>
+                    {% for item in section.items %}
+                        <article class="record-card" data-search="{{ item.search_text }}">
+                            {% if item.image_url %}
+                                <div class="record-media">
+                                    <img src="{{ item.image_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.parentElement.style.display='none';">
                                 </div>
+                            {% endif %}
 
-                                {% if item.meta %}
-                                    <div class="meta">
-                                        {% for meta in item.meta %}
-                                            <span class="pill">{{ meta.label }}: {{ meta.value }}</span>
-                                        {% endfor %}
-                                    </div>
-                                {% endif %}
+                            <div class="record-main">
+                                <h3>{{ item.title }}</h3>
 
-                                {% if item.url %}
-                                    <a class="source-link" href="{{ item.url }}" target="_blank" rel="noopener">Open source</a>
+                                {% if item.description %}
+                                    <p>{{ item.description }}</p>
                                 {% endif %}
-                            </article>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <p class="empty">No clean data saved yet. Scraping may still be running.</p>
+                            </div>
+
+                            {% if item.meta %}
+                                <div class="meta">
+                                    {% for meta in item.meta %}
+                                        <span class="pill">{{ meta.label }}: {{ meta.value }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                            {% if item.url %}
+                                <a class="source-link" href="{{ item.url }}" target="_blank" rel="noopener">Open source</a>
+                            {% endif %}
+                        </article>
+                    {% endfor %}
+                </div>
+                <p class="empty{% if section.items %} is-hidden{% endif %}" data-empty-state>No clean data saved yet. Scraping may still be running.</p>
+                {% if section.checked_count < section.total_count %}
+                    <p class="load-status" data-load-status>Loading remaining clean records...</p>
                 {% endif %}
             </section>
         {% endfor %}

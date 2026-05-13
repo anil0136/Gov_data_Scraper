@@ -213,6 +213,51 @@ class DashboardSectionTests(SimpleTestCase):
         self.assertEqual(section["clean_count"], 1)
         self.assertEqual(section["hidden_count"], 1)
 
+    def test_dashboard_records_api_returns_clean_batch(self):
+        records = [
+            MongoRecord(
+                "gov",
+                {
+                    "_id": "gov-1",
+                    "title": "Apply for example service",
+                    "service_type": "Online",
+                    "department": "Example Department",
+                    "description": "Example description",
+                    "url": "https://example.com/service",
+                },
+            ),
+            MongoRecord(
+                "gov",
+                {
+                    "_id": "gov-2",
+                    "title": "HomeAll Categories",
+                    "service_type": "",
+                    "department": "",
+                    "description": "",
+                    "url": "https://example.com/noise",
+                },
+            ),
+        ]
+
+        with patch("scraper.views.count_records", return_value=100), patch(
+            "scraper.views.latest_records",
+            return_value=records,
+        ) as latest_records:
+            response = self.client.get("/api/dashboard/gov/?offset=24&limit=100")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(latest_records.call_args.kwargs["limit"], 100)
+        self.assertEqual(latest_records.call_args.kwargs["skip"], 24)
+        self.assertIn("title", latest_records.call_args.kwargs["projection"])
+        self.assertIn("service_type", latest_records.call_args.kwargs["projection"])
+        payload = response.json()
+        self.assertEqual(payload["kind"], "gov")
+        self.assertEqual(payload["next_offset"], 26)
+        self.assertEqual(payload["checked_count"], 2)
+        self.assertEqual(payload["clean_count"], 1)
+        self.assertEqual(payload["items"][0]["title"], "Apply for example service")
+        self.assertIn("search_text", payload["items"][0])
+
 
 class SchemeApiTests(SimpleTestCase):
     def test_api_index_lists_scheme_urls(self):
@@ -352,7 +397,7 @@ class SchemeApiTests(SimpleTestCase):
         self.assertEqual(payload["current_source"], "GOV")
 
     def test_card_api_returns_matching_records_with_api_key(self):
-        def records_for_kind(kind):
+        def records_for_kind(kind, **kwargs):
             if kind == "myscheme":
                 return [
                     MongoRecord(
@@ -378,7 +423,7 @@ class SchemeApiTests(SimpleTestCase):
                 ]
             return []
 
-        with patch("scraper.views.latest_records", side_effect=records_for_kind):
+        with patch("scraper.views.find_records", side_effect=records_for_kind):
             response = self.client.get("/api/cards/agriculture/")
 
         self.assertEqual(response.status_code, 200)
@@ -389,7 +434,7 @@ class SchemeApiTests(SimpleTestCase):
         self.assertEqual(payload["results"][0]["title"], "Crop insurance support")
 
     def test_card_api_accepts_api_key_in_url(self):
-        with patch("scraper.views.latest_records", return_value=[]):
+        with patch("scraper.views.find_records", return_value=[]):
             response = self.client.get("/api/cards/banking_financial_services_and_insurance/")
 
         self.assertEqual(response.status_code, 200)

@@ -1,7 +1,8 @@
 from django.http import JsonResponse
 from django.shortcuts import render
+from urllib.parse import unquote
 
-from .mongo import count_records, latest_records
+from .mongo import DESCENDING, count_records, find_records, latest_records
 from .startup import get_scraper_status, start_scraper_once
 
 
@@ -108,6 +109,11 @@ API_FIELDS = {
     ),
 }
 
+CARD_RESULT_FIELDS = {
+    kind: tuple(field for field in fields if field != "raw_data")
+    for kind, fields in API_FIELDS.items()
+}
+
 ALL_SCHEME_KINDS = ("umang", "gov", "myscheme", "india")
 SCHEME_AND_OPPORTUNITY_KINDS = ALL_SCHEME_KINDS + ("scholarships", "grants", "tenders")
 
@@ -116,91 +122,105 @@ CARD_APIS = {
         "api_key": "banking_financial_services_and_insurance",
         "title": "Banking, Financial Services and Insurance",
         "kinds": ALL_SCHEME_KINDS,
+        "category_terms": ("banking,financial services and insurance",),
         "keywords": ("bank", "banking", "finance", "financial", "insurance", "loan", "credit", "pension"),
     },
     "health-wellness": {
         "api_key": "health_wellness",
         "title": "Health & Wellness",
         "kinds": ALL_SCHEME_KINDS,
+        "category_terms": ("health & wellness",),
         "keywords": ("health", "healthcare", "wellness", "medical", "medicine", "hospital", "ayush"),
     },
     "housing-shelter": {
         "api_key": "housing_shelter",
         "title": "Housing & Shelter",
         "kinds": ALL_SCHEME_KINDS,
+        "category_terms": ("housing & shelter",),
         "keywords": ("housing", "shelter", "house", "home", "awas", "habitat"),
     },
     "public-safety-law-justice": {
         "api_key": "public_safety_law_justice",
         "title": "Public Safety, Law & Justice",
         "kinds": ALL_SCHEME_KINDS,
+        "category_terms": ("public safety,law & justice", "public safety, law & justice"),
         "keywords": ("public safety", "law", "justice", "legal", "police", "court", "crime"),
     },
     "science-it-communications": {
         "api_key": "science_it_communications",
         "title": "Science, IT & Communications",
         "kinds": ALL_SCHEME_KINDS,
+        "category_terms": ("science, it & communications", "science,it & communications"),
         "keywords": ("science", "technology", "innovation", "digital", "communication", "communications", "it "),
     },
     "skills-employment": {
         "api_key": "skills_employment",
         "title": "Skills & Employment",
         "kinds": ALL_SCHEME_KINDS,
+        "category_terms": ("skills & employment",),
         "keywords": ("skill", "employment", "training", "job", "livelihood", "apprentice"),
     },
     "social-welfare-empowerment": {
         "api_key": "social_welfare_empowerment",
         "title": "Social Welfare & Empowerment",
         "kinds": ALL_SCHEME_KINDS,
+        "category_terms": ("social welfare & empowerment",),
         "keywords": ("social welfare", "welfare", "empowerment", "social security", "disability", "senior citizen"),
     },
     "sports-culture": {
         "api_key": "sports_culture",
         "title": "Sports & Culture",
         "kinds": ALL_SCHEME_KINDS,
+        "category_terms": ("sports & culture",),
         "keywords": ("sports", "sport", "culture", "cultural", "talent", "heritage", "art"),
     },
     "transport-infrastructure": {
         "api_key": "transport_infrastructure",
         "title": "Transport & Infrastructure",
         "kinds": ALL_SCHEME_KINDS,
+        "category_terms": ("transport & infrastructure",),
         "keywords": ("transport", "transportation", "infrastructure", "road", "rail", "vehicle"),
     },
     "travel-tourism": {
         "api_key": "travel_tourism",
         "title": "Travel & Tourism",
         "kinds": ALL_SCHEME_KINDS,
+        "category_terms": ("travel & tourism",),
         "keywords": ("travel", "tourism", "tourist", "hospitality"),
     },
     "utility-sanitation": {
         "api_key": "utility_sanitation",
         "title": "Utility & Sanitation",
         "kinds": ALL_SCHEME_KINDS,
+        "category_terms": ("utility & sanitation",),
         "keywords": ("utility", "sanitation", "water", "drinking water", "sewerage", "electricity"),
     },
     "women-and-child": {
         "api_key": "women_and_child",
         "title": "Women and Child",
         "kinds": ALL_SCHEME_KINDS,
+        "category_terms": ("women and child",),
         "keywords": ("women", "woman", "child", "children", "girl", "mother", "family welfare"),
     },
     "agriculture": {
         "api_key": "agriculture",
         "title": "Agriculture",
         "kinds": SCHEME_AND_OPPORTUNITY_KINDS,
+        "category_terms": ("agriculture,rural & environment", "agriculture", "agricultural or forestry"),
         "keywords": ("agriculture", "farmer", "farming", "crop", "kisan", "rural", "fishery", "fisheries"),
     },
     "women-programs": {
         "api_key": "women_programs",
         "title": "Women Programs",
         "kinds": SCHEME_AND_OPPORTUNITY_KINDS,
+        "category_terms": ("women and child",),
         "keywords": ("women", "woman", "girl", "female", "mother", "child", "family welfare"),
     },
     "research-grants": {
         "api_key": "research_grants",
         "title": "Research Grants",
         "kinds": ("grants", "scholarships", "myscheme", "india"),
-        "keywords": ("research", "grant", "fellowship", "phd", "doctoral", "scientific", "academic", "professor"),
+        "keywords": ("research", "fellowship", "phd", "doctoral", "scientific", "academic", "professor"),
     },
     "tenders-rfps": {
         "api_key": "tenders_rfps",
@@ -212,6 +232,7 @@ CARD_APIS = {
         "api_key": "startup_msme",
         "title": "Startup/MSME",
         "kinds": SCHEME_AND_OPPORTUNITY_KINDS,
+        "category_terms": ("business & entrepreneurship",),
         "keywords": ("startup", "start-up", "msme", "business", "entrepreneur", "entrepreneurship", "venture"),
     },
     "scholarships": {
@@ -221,6 +242,63 @@ CARD_APIS = {
         "keywords": ("scholarship", "fellowship", "tuition", "student", "education"),
     },
 }
+
+DASHBOARD_SOURCES = {
+    "umang": {
+        "title": "UMANG Schemes",
+        "meta_fields": (("Category", "category"), ("Department", "department")),
+        "description_field": "description",
+    },
+    "gov": {
+        "title": "Government Services",
+        "meta_fields": (("Type", "service_type"), ("Department", "department")),
+        "description_field": "description",
+    },
+    "myscheme": {
+        "title": "myScheme",
+        "meta_fields": (("Category", "category"), ("Level", "level"), ("Ministry", "ministry")),
+        "description_field": "description",
+    },
+    "india": {
+        "title": "India Portal Schemes",
+        "meta_fields": (("Category", "category"), ("Ministry", "ministry")),
+        "description_field": "description",
+    },
+    "scholarships": {
+        "title": "Scholarships",
+        "meta_fields": (("Provider", "provider"), ("Deadline", "deadline"), ("Award", "amount")),
+        "description_field": "description",
+    },
+    "grants": {
+        "title": "Grants",
+        "meta_fields": (("Organization", "organization"), ("Funding", "funding_amount")),
+        "description_field": "description",
+    },
+}
+
+
+def _dashboard_projection(kind):
+    fields = {"title": 1, "url": 1, "image_url": 1}
+    config = DASHBOARD_SOURCES[kind]
+    fields[config["description_field"]] = 1
+    for _, field in config["meta_fields"]:
+        fields[field] = 1
+
+    # These fields are inspected by display filters even when they are not shown.
+    for field in (
+        "description",
+        "service_type",
+        "department",
+        "eligibility",
+        "benefits",
+        "provider",
+        "deadline",
+        "amount",
+        "organization",
+        "tender_value",
+    ):
+        fields[field] = 1
+    return fields
 
 
 def _clean_text(value):
@@ -296,9 +374,147 @@ def _search_blob(item):
     return f" {' '.join(_clean_text(value).lower() for value in values)} "
 
 
+def _normalized_text(value):
+    return (
+        _clean_text(value)
+        .lower()
+        .replace("&", "and")
+        .replace(" ,", ",")
+        .replace(", ", ",")
+    )
+
+
+def _category_from_source_url(item):
+    url = _clean_text(getattr(item, "url", "") or "")
+    marker = "/category/"
+    if marker not in url:
+        return ""
+    return unquote(url.rsplit(marker, 1)[-1])
+
+
+def _category_values(item):
+    return [
+        getattr(item, "category", ""),
+        getattr(item, "department", ""),
+        getattr(item, "procurement_type", ""),
+        _category_from_source_url(item),
+    ]
+
+
+def _matches_category_terms(item, category_terms):
+    if not category_terms:
+        return False
+
+    item_values = [
+        _normalized_text(value)
+        for value in _category_values(item)
+        if _normalized_text(value) and _normalized_text(value) != "umang"
+    ]
+
+    for term in category_terms:
+        normalized_term = _normalized_text(term)
+        if not normalized_term:
+            continue
+        if any(normalized_term == item_value or normalized_term in item_value for item_value in item_values):
+            return True
+    return False
+
+
+def _has_meaningful_category(item):
+    return any(
+        value and value != "umang"
+        for value in (_normalized_text(category_value) for category_value in _category_values(item))
+    )
+
+
 def _matches_keywords(item, keywords):
     blob = _search_blob(item)
     return any(keyword.lower() in blob for keyword in keywords)
+
+
+def _is_startup_or_msme(item):
+    organization = _normalized_text(getattr(item, "organization", ""))
+    if organization in {"startup grants india", "startup india"}:
+        return True
+    return _matches_category_terms(item, ("business & entrepreneurship",)) or _matches_keywords(
+        item,
+        ("startup", "start-up", "msme", "entrepreneur", "entrepreneurship", "venture"),
+    )
+
+
+def _is_research_grant(item):
+    kind = _item_kind(item)
+    organization = _normalized_text(getattr(item, "organization", ""))
+    if kind == "grants" and organization in {"startup grants india", "startup india"}:
+        return False
+    return _matches_keywords(
+        item,
+        ("research", "fellowship", "phd", "doctoral", "scientific", "academic", "professor"),
+    )
+
+
+def _matches_card_api(item, config):
+    api_key = config["api_key"]
+
+    if api_key == "scholarships":
+        return _item_kind(item) == "scholarships"
+    if api_key == "tenders_rfps":
+        return _item_kind(item) == "tenders"
+    if api_key == "startup_msme":
+        return _is_startup_or_msme(item)
+    if api_key == "research_grants":
+        return _is_research_grant(item)
+
+    category_terms = config.get("category_terms", ())
+    if _matches_category_terms(item, category_terms):
+        return True
+    if category_terms and _item_kind(item) in SCHEME_AND_OPPORTUNITY_KINDS and _has_meaningful_category(item):
+        return False
+    return _matches_keywords(item, config["keywords"])
+
+
+def _regex_query(field, value):
+    return {field: {"$regex": value, "$options": "i"}}
+
+
+def _card_search_fields(kind):
+    fields = ["title", "description", "category", "department", "service_type", "tags", "url"]
+    if kind == "grants":
+        fields.append("organization")
+    if kind == "scholarships":
+        fields.extend(["provider", "amount"])
+    if kind == "tenders":
+        fields.extend(["organization", "procurement_type", "tender_value"])
+    return fields
+
+
+def _card_query_terms(config):
+    api_key = config["api_key"]
+    if api_key == "scholarships" or api_key == "tenders_rfps":
+        return ()
+    if api_key == "research_grants":
+        return config["keywords"]
+    return tuple(config.get("category_terms", ())) + tuple(config["keywords"])
+
+
+def _card_query(kind, config):
+    terms = _card_query_terms(config)
+    if not terms:
+        return {}
+
+    if config.get("category_terms") and kind in ALL_SCHEME_KINDS:
+        fields = ["category", "department", "procurement_type", "url"]
+    else:
+        fields = _card_search_fields(kind)
+
+    clauses = []
+    for field in fields:
+        clauses.extend(_regex_query(field, term) for term in terms if term)
+    return {"$or": clauses} if clauses else {}
+
+
+def _card_projection(kind):
+    return {field: 1 for field in CARD_RESULT_FIELDS[kind]}
 
 
 def _is_displayable(item):
@@ -394,19 +610,42 @@ def _card_from_item(item, meta_fields=(), description_field="description"):
     }
 
 
-def _section(title, kind, meta_fields=(), description_field="description", display_limit=24):
-    total_count = count_records(kind)
-    preview_items = latest_records(kind, limit=display_limit)
-    clean_items = [
-        _card_from_item(item, meta_fields=meta_fields, description_field=description_field)
-        for item in preview_items
+def _card_search_text(card):
+    meta_values = " ".join(meta["value"] for meta in card["meta"])
+    return _clean_text(f"{card['title']} {card['description']} {meta_values}")
+
+
+def _dashboard_cards(kind, offset=0, limit=100):
+    config = DASHBOARD_SOURCES[kind]
+    records = latest_records(
+        kind,
+        limit=limit,
+        skip=offset,
+        projection=_dashboard_projection(kind),
+    )
+    cards = [
+        _card_from_item(
+            item,
+            meta_fields=config["meta_fields"],
+            description_field=config["description_field"],
+        )
+        for item in records
         if _is_displayable(item)
     ]
+    for card in cards:
+        card["search_text"] = _card_search_text(card)
+    return records, cards
+
+
+def _section(title, kind, meta_fields=(), description_field="description", display_limit=24):
+    total_count = count_records(kind)
+    preview_items, clean_items = _dashboard_cards(kind, limit=display_limit)
     checked_count = len(preview_items)
 
     return {
         "title": title,
         "slug": title.lower().replace(" ", "-"),
+        "kind": kind,
         "total_count": total_count,
         "checked_count": checked_count,
         "clean_count": len(clean_items),
@@ -429,9 +668,9 @@ def _serialize_item(item, fields):
     }
 
 
-def _filtered_items(kind, predicate=None):
+def _filtered_items(kind, predicate=None, limit=None):
     items = []
-    for item in latest_records(kind):
+    for item in latest_records(kind, limit=limit):
         if not _is_displayable(item):
             continue
         if predicate is not None and not predicate(item):
@@ -473,8 +712,18 @@ def _card_api_payload(slug):
 
     results = []
     for kind in config["kinds"]:
-        for item in _filtered_items(kind, predicate=lambda record, config=config: _matches_keywords(record, config["keywords"])):
-            row = _serialize_item(item, API_FIELDS[kind])
+        candidates = find_records(
+            kind,
+            query=_card_query(kind, config),
+            sort=[("_id", DESCENDING)],
+            projection=_card_projection(kind),
+        )
+        for item in candidates:
+            if not _is_displayable(item):
+                continue
+            if not _matches_card_api(item, config):
+                continue
+            row = _serialize_item(item, CARD_RESULT_FIELDS[kind])
             row["source_key"] = kind
             results.append(row)
 
@@ -581,42 +830,42 @@ def api_card(request, slug):
     return JsonResponse(payload)
 
 
+def api_dashboard_records(request, kind):
+    if kind not in DASHBOARD_SOURCES:
+        return JsonResponse({"error": "Unknown dashboard source."}, status=404)
+
+    try:
+        offset = max(0, int(request.GET.get("offset", "0")))
+        limit = max(1, min(250, int(request.GET.get("limit", "100"))))
+    except ValueError:
+        return JsonResponse({"error": "Offset and limit must be numbers."}, status=400)
+
+    total_count = count_records(kind)
+    checked_items, clean_items = _dashboard_cards(kind, offset=offset, limit=limit)
+    checked_count = len(checked_items)
+    next_offset = offset + checked_count
+
+    return JsonResponse({
+        "source": DASHBOARD_SOURCES[kind]["title"],
+        "kind": kind,
+        "total_count": total_count,
+        "offset": offset,
+        "next_offset": next_offset,
+        "checked_count": checked_count,
+        "clean_count": len(clean_items),
+        "done": next_offset >= total_count or checked_count == 0,
+        "items": clean_items,
+    })
+
+
 def api_scraper_status(request):
     return JsonResponse(get_scraper_status())
 
 
 def home(request):
     sections = [
-        _section(
-            "UMANG Schemes",
-            "umang",
-            meta_fields=(("Category", "category"), ("Department", "department")),
-        ),
-        _section(
-            "Government Services",
-            "gov",
-            meta_fields=(("Type", "service_type"), ("Department", "department")),
-        ),
-        _section(
-            "myScheme",
-            "myscheme",
-            meta_fields=(("Category", "category"), ("Level", "level"), ("Ministry", "ministry")),
-        ),
-        _section(
-            "India Portal Schemes",
-            "india",
-            meta_fields=(("Category", "category"), ("Ministry", "ministry")),
-        ),
-        _section(
-            "Scholarships",
-            "scholarships",
-            meta_fields=(("Provider", "provider"), ("Deadline", "deadline"), ("Award", "amount")),
-        ),
-        _section(
-            "Grants",
-            "grants",
-            meta_fields=(("Organization", "organization"), ("Funding", "funding_amount")),
-        ),
+        _section(config["title"], kind)
+        for kind, config in DASHBOARD_SOURCES.items()
     ]
 
     stats = {

@@ -355,6 +355,17 @@ body {
     padding: 22px;
 }
 
+.empty.is-hidden {
+    display: none;
+}
+
+.load-status {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+    margin: 14px 0 0;
+}
+
 @media (max-width: 920px) {
     .hero {
         grid-template-columns: 1fr;

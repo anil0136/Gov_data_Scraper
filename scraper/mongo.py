@@ -96,25 +96,29 @@ def delete_by_id(kind, object_id):
     return collection(kind).delete_one({"_id": object_id})
 
 
-def find_records(kind, query=None, sort=None):
-    cursor = collection(kind).find(query or {})
+def find_records(kind, query=None, sort=None, limit=None, skip=0, projection=None):
+    cursor = collection(kind).find(query or {}, projection)
     if sort:
         cursor = cursor.sort(sort)
+    if skip:
+        cursor = cursor.skip(skip)
+    if limit:
+        cursor = cursor.limit(limit)
     return [MongoRecord(kind, document) for document in cursor]
 
 
 def count_records(kind, query=None):
     try:
-        if not query:
-            return collection(kind).estimated_document_count()
         return collection(kind).count_documents(query or {})
     except Exception:
         return 0
 
 
-def latest_records(kind, limit=100):
+def latest_records(kind, limit=100, skip=0, projection=None):
     try:
-        cursor = collection(kind).find({}).sort([("_id", DESCENDING)])
+        cursor = collection(kind).find({}, projection).sort([("_id", DESCENDING)])
+        if skip:
+            cursor = cursor.skip(skip)
         if limit:
             cursor = cursor.limit(limit)
         return [MongoRecord(kind, document) for document in cursor]

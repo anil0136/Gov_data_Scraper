@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     CARD_APIS,
     api_card,
+    api_dashboard_records,
     api_government_services,
     api_grants,
     api_index,
@@ -27,6 +28,7 @@ urlpatterns = [
     path('api/grants/', api_grants, name='api-grants'),
     path('api/tenders/', api_tenders, name='api-tenders'),
     path('api/cards/<str:slug>/', api_card, name='api-card'),
+    path('api/dashboard/<str:kind>/', api_dashboard_records, name='api-dashboard-records'),
     path('api/scraper-status/', api_scraper_status, name='api-scraper-status'),
 ]
 
