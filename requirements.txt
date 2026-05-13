@@ -1,4 +1,5 @@
 Django
+gunicorn
 selenium
 webdriver-manager
 requests
