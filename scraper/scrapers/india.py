@@ -1,9 +1,12 @@
+import time
 from urllib.parse import parse_qs, urlparse
 
-from .common import absolute_url, clean_text, get_soup, is_good_title, unique_items
+from .common import absolute_url, clean_text, get_session, get_soup, is_good_title, unique_items
 
 
 INDIA_SCHEMES_URL = "https://www.india.gov.in/my-government/schemes?page=1"
+INDIA_SEARCH_API_URL = "https://www.india.gov.in/my-government/schemes/search/dataservices/getschemes"
+INDIA_PAGE_SIZE = 100
 
 
 def _category_from_url(url):
@@ -44,8 +47,91 @@ def _parse_featured_schemes(soup, base_url, category):
     return unique_items(data)
 
 
-def scrape_india(url):
+def _parse_api_scheme(item, category_hint):
+    title = clean_text(item.get("title"))
+    if not is_good_title(title, min_words=3):
+        return None
+
+    categories = item.get("schemeCategory") or []
+    if isinstance(categories, str):
+        categories = [categories]
+    ministry = clean_text(item.get("ministry") or item.get("npiMinistry") or "National Portal of India")
+    slug = clean_text(item.get("slug"))
+
+    return {
+        "title": title,
+        "description": clean_text(item.get("description")),
+        "ministry": ministry,
+        "category": clean_text(", ".join(categories)) or category_hint or "India Portal",
+        "url": absolute_url("https://www.myscheme.gov.in/", f"/schemes/{slug}" if slug else ""),
+    }
+
+
+def _scrape_india_api(url, max_pages=None):
+    session = get_session(
+        extra_headers={
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json",
+            "Origin": "https://www.india.gov.in",
+            "Referer": url,
+        }
+    )
     category = _category_from_url(url)
+    data = []
+    page_number = 1
+    total = None
+
+    while total is None or len(data) < total:
+        if max_pages is not None and page_number > max_pages:
+            break
+
+        payload = {
+            "categories": None,
+            "mustFilter": [],
+            "pageNumber": page_number,
+            "pageSize": INDIA_PAGE_SIZE,
+        }
+        for attempt in range(1, 4):
+            try:
+                response = session.post(
+                    INDIA_SEARCH_API_URL,
+                    json=payload,
+                    timeout=60,
+                )
+                response.raise_for_status()
+                break
+            except Exception:
+                if attempt == 3:
+                    raise
+                time.sleep(attempt * 2)
+
+        schemes_response = (response.json() or {}).get("schemesResponse") or {}
+        total = int(schemes_response.get("total") or 0)
+        results = schemes_response.get("results") or []
+
+        for item in results:
+            parsed = _parse_api_scheme(item, category)
+            if parsed:
+                data.append(parsed)
+
+        print(f"INDIA scraped {len(results)} API items from page {page_number} ({len(data)} kept)")
+        if not results:
+            break
+        page_number += 1
+
+    return unique_items(data)
+
+
+def scrape_india(url, max_pages=None):
+    category = _category_from_url(url)
+
+    try:
+        data = _scrape_india_api(url, max_pages=max_pages)
+        if data:
+            print(f"INDIA scraped {len(data)} items from API for {url}")
+            return data
+    except Exception as exc:
+        print(f"INDIA API fetch failed for {url}: {type(exc).__name__}: {exc}")
 
     try:
         soup = get_soup(url)

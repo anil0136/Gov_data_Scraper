@@ -1,5 +1,6 @@
 import json
 import re
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
 
@@ -18,6 +19,7 @@ TENDERKART_HEADERS = {
     "Sec-Fetch-User": "?1",
 }
 DEFAULT_TENDER_LIMIT = 20
+DEFAULT_TENDER_PAGES = 10
 
 
 def _iso_to_date(value):
@@ -149,40 +151,78 @@ def _parse_tenderkart_cards(soup, source_url):
     return rows
 
 
-def scrape_tendersontime(url, limit=DEFAULT_TENDER_LIMIT):
+def _url_with_page(url, page_number):
+    parsed = urlparse(url)
+    query = parse_qs(parsed.query)
+    query["page"] = [str(page_number)]
+    return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
+
+
+def scrape_tendersontime(url, limit=DEFAULT_TENDER_LIMIT, max_pages=DEFAULT_TENDER_PAGES):
     session = get_session()
-    response = session.post(
-        TENDERS_ON_TIME_API_URL,
-        data={
-            "searchType": "1",
-            "mainsearch": "",
-            "tendersaction": "FilterTenders",
-            "status": "1",
-            "keyword": TENDERS_ON_TIME_SEARCH_KEYWORD,
-            "pageNo": "1",
-            "orderby": "Posting_Date DESC",
-            "perPageRecord": str(limit),
-        },
-        timeout=30,
-    )
-    response.raise_for_status()
-    payload = json.loads(response.text.strip())
-    data = _parse_tendersontime_results(payload, url)
+    data = []
+    seen_ids = set()
+
+    for page_number in range(1, max_pages + 1):
+        response = session.post(
+            TENDERS_ON_TIME_API_URL,
+            data={
+                "searchType": "1",
+                "mainsearch": "",
+                "tendersaction": "FilterTenders",
+                "status": "1",
+                "keyword": TENDERS_ON_TIME_SEARCH_KEYWORD,
+                "pageNo": str(page_number),
+                "orderby": "Posting_Date DESC",
+                "perPageRecord": str(limit),
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        payload = json.loads(response.text.strip())
+        rows = _parse_tendersontime_results(payload, url)
+        new_rows = []
+        for row in rows:
+            key = row.get("external_id") or row.get("url") or row.get("title")
+            if key and key not in seen_ids:
+                seen_ids.add(key)
+                new_rows.append(row)
+        data.extend(new_rows)
+        print(f"TENDERSONTIME scraped {len(new_rows)} new items from API page {page_number}")
+        if not rows or not new_rows:
+            break
+
     print(f"TENDERSONTIME scraped {len(data)} items from {url}")
     return data
 
 
-def scrape_tenderkart(url):
-    soup = get_soup(url, extra_headers=TENDERKART_HEADERS)
-    data = _parse_tenderkart_cards(soup, url)
+def scrape_tenderkart(url, max_pages=DEFAULT_TENDER_PAGES):
+    data = []
+    seen_titles = set()
+
+    for page_number in range(1, max_pages + 1):
+        page_url = _url_with_page(url, page_number)
+        soup = get_soup(page_url, extra_headers=TENDERKART_HEADERS)
+        rows = _parse_tenderkart_cards(soup, page_url)
+        new_rows = []
+        for row in rows:
+            key = clean_text(row.get("external_id") or row.get("title")).lower()
+            if key and key not in seen_titles:
+                seen_titles.add(key)
+                new_rows.append(row)
+        data.extend(new_rows)
+        print(f"TENDERKART scraped {len(new_rows)} new items from {page_url}")
+        if not rows or not new_rows:
+            break
+
     print(f"TENDERKART scraped {len(data)} items from {url}")
     return data
 
 
-def scrape_tenders(source_name, url, limit=DEFAULT_TENDER_LIMIT):
+def scrape_tenders(source_name, url, limit=DEFAULT_TENDER_LIMIT, max_pages=DEFAULT_TENDER_PAGES):
     source_name = (source_name or "").strip().lower()
     if source_name == "tendersontime":
-        return unique_items(scrape_tendersontime(url, limit=limit))
+        return unique_items(scrape_tendersontime(url, limit=limit, max_pages=max_pages))
     if source_name == "tenderkart":
-        return unique_items(scrape_tenderkart(url))
+        return unique_items(scrape_tenderkart(url, max_pages=max_pages))
     raise ValueError(f"Unsupported tender source: {source_name}")

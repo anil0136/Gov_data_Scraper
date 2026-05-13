@@ -10,7 +10,7 @@ class ScraperConfig(AppConfig):
         if "runserver" not in sys.argv:
             return
 
-        if os.environ.get("RUN_MAIN") not in {None, "true"}:
+        if os.environ.get("RUN_MAIN") != "true":
             return
 
         from .startup import start_scraper_once

@@ -1,4 +1,5 @@
 from urllib.parse import urljoin
+import time
 
 import requests
 
@@ -56,10 +57,29 @@ def get_session(extra_headers=None):
     return session
 
 
+def get_with_retry(session, url, timeout=30, attempts=4, backoff=2):
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        try:
+            response = session.get(url, timeout=timeout)
+            response.raise_for_status()
+            return response
+        except requests.RequestException as exc:
+            last_error = exc
+            if attempt == attempts:
+                break
+            wait_seconds = backoff * attempt
+            print(
+                f"Request failed for {url}: {type(exc).__name__}: {exc}. "
+                f"Retrying in {wait_seconds}s ({attempt}/{attempts})..."
+            )
+            time.sleep(wait_seconds)
+    raise last_error
+
+
 def get_soup(url, parser="html.parser", timeout=30, extra_headers=None):
     session = get_session(extra_headers=extra_headers)
-    response = session.get(url, timeout=timeout)
-    response.raise_for_status()
+    response = get_with_retry(session, url, timeout=timeout)
     from bs4 import BeautifulSoup
 
     return BeautifulSoup(response.text, parser)

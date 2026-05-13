@@ -10,6 +10,13 @@ from .scrapers.tenders import scrape_tenders
 
 from .services import *
 
+
+def _save_scraped_data(label, data, save_function):
+    print(f"    {label} scraping successful. Starting to store data into MySQL...")
+    save_function(data)
+    print(f"    {label} data saved successfully to MySQL.")
+
+
 def run_all_scrapers():
     total_urls = len(UMANG_URLS) + len(GOV_URLS) + len(MYSCHEME_URLS) + len(INDIA_URLS) + len(SCHOLARSHIP_URLS) + len(GRANT_URLS) + len(TENDER_URLS)
     processed = 0
@@ -21,7 +28,7 @@ def run_all_scrapers():
     for i, url in enumerate(UMANG_URLS, 1):
         print(f"  UMANG {i}/{len(UMANG_URLS)}: {url}")
         data = scrape_umang(url)
-        save_umang(data)
+        _save_scraped_data("UMANG", data, save_umang)
         processed += 1
         print(f"    Saved {len(data)} items. Total processed: {processed}/{total_urls}")
 
@@ -30,7 +37,7 @@ def run_all_scrapers():
     for i, url in enumerate(GOV_URLS, 1):
         print(f"  GOV {i}/{len(GOV_URLS)}: {url}")
         data = scrape_gov(url)
-        save_gov(data)
+        _save_scraped_data("GOV", data, save_gov)
         processed += 1
         print(f"    Saved {len(data)} items. Total processed: {processed}/{total_urls}")
 
@@ -39,7 +46,7 @@ def run_all_scrapers():
     for i, url in enumerate(MYSCHEME_URLS, 1):
         print(f"  MYSCHEME {i}/{len(MYSCHEME_URLS)}: {url}")
         data = scrape_myscheme(url)
-        save_myscheme(data)
+        _save_scraped_data("MYSCHEME", data, save_myscheme)
         processed += 1
         print(f"    Saved {len(data)} items. Total processed: {processed}/{total_urls}")
 
@@ -48,7 +55,7 @@ def run_all_scrapers():
     for i, url in enumerate(INDIA_URLS, 1):
         print(f"  INDIA {i}/{len(INDIA_URLS)}: {url}")
         data = scrape_india(url)
-        save_india(data)
+        _save_scraped_data("INDIA", data, save_india)
         processed += 1
         print(f"    Saved {len(data)} items. Total processed: {processed}/{total_urls}")
 
@@ -57,7 +64,7 @@ def run_all_scrapers():
     for i, url in enumerate(SCHOLARSHIP_URLS, 1):
         print(f"  SCHOLARSHIP {i}/{len(SCHOLARSHIP_URLS)}: {url}")
         data = scrape_scholarship(url)
-        save_scholarship(data)
+        _save_scraped_data("SCHOLARSHIP", data, save_scholarship)
         processed += 1
         print(f"    Saved {len(data)} items. Total processed: {processed}/{total_urls}")
 
@@ -66,16 +73,18 @@ def run_all_scrapers():
     for i, url in enumerate(GRANT_URLS, 1):
         print(f"  GRANTS {i}/{len(GRANT_URLS)}: {url}")
         data = scrape_grants(url)
-        save_grants(data)
+        _save_scraped_data("GRANTS", data, save_grants)
         processed += 1
         print(f"    Saved {len(data)} items. Total processed: {processed}/{total_urls}")
 
-    print(f"Processing TENDERS ({len(TENDER_URLS)} URLs)...")
+    # TENDERS
+    print(f"Processing TENDERS ({len(TENDER_URLS)} sources)...")
     for i, (source_name, url) in enumerate(TENDER_URLS.items(), 1):
-        print(f"  TENDERS {i}/{len(TENDER_URLS)} [{source_name}]: {url}")
+        print(f"  TENDERS {i}/{len(TENDER_URLS)} ({source_name}): {url}")
         data = scrape_tenders(source_name, url)
-        save_tender_listings(data)
+        _save_scraped_data("TENDERS", data, save_tender_listings)
         processed += 1
         print(f"    Saved {len(data)} items. Total processed: {processed}/{total_urls}")
 
     print(f"Scraping completed! Total URLs processed: {processed}")
+    print("Scrape successfully. Data stored to MySQL database successfully.")

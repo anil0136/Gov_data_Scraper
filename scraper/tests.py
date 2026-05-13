@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 from .scrapers.scholarship import _parse_buddy4study_items, _parse_wemakescholars_cards
 from .scrapers.tenders import _parse_tenderkart_cards, _parse_tendersontime_results
 from .views import _is_displayable
-from .models import Scholarship
+from .models import GovService, MyScheme, Scholarship
 
 
 class TenderParserTests(TestCase):
@@ -165,5 +165,62 @@ class ScholarshipDisplayTests(TestCase):
             url="https://www.buddy4study.com/scholarship/google-phd-fellowship-india-program-2026",
         )
         self.assertTrue(_is_displayable(item))
+
+
+class SchemeApiTests(TestCase):
+    def test_api_index_lists_scheme_urls(self):
+        response = self.client.get("/api/")
+
+        self.assertEqual(response.status_code, 200)
+        endpoints = response.json()["endpoints"]
+        self.assertIn("umang_schemes", endpoints)
+        self.assertIn("government_services", endpoints)
+        self.assertIn("myscheme", endpoints)
+        self.assertIn("india_portal_schemes", endpoints)
+        self.assertIn("scholarships", endpoints)
+        self.assertIn("grants", endpoints)
+
+    def test_government_services_api_returns_saved_rows(self):
+        GovService.objects.create(
+            title="Apply for example service",
+            service_type="Online",
+            department="Example Department",
+            description="Example description",
+            url="https://example.com/service",
+        )
+
+        response = self.client.get("/api/government-services/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["source"], "Government Services")
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["results"][0]["title"], "Apply for example service")
+        self.assertEqual(payload["results"][0]["url"], "https://example.com/service")
+
+    def test_myscheme_api_includes_detail_fields(self):
+        MyScheme.objects.create(
+            title="Example myScheme",
+            description="Description",
+            eligibility="Eligibility",
+            benefits="Benefits",
+            category="Category",
+            ministry="Ministry",
+            department="Department",
+            level="State",
+            tags="tag",
+            application_process="Apply online",
+            documents="Documents",
+            references="References",
+            raw_data={"source": "test"},
+            url="https://example.com/myscheme",
+        )
+
+        response = self.client.get("/api/myscheme/")
+
+        self.assertEqual(response.status_code, 200)
+        result = response.json()["results"][0]
+        self.assertEqual(result["eligibility"], "Eligibility")
+        self.assertEqual(result["raw_data"], {"source": "test"})
 
 # Create your tests here.

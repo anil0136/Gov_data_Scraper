@@ -2,11 +2,11 @@
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
+import time
 from .driver import get_driver
-import requests
-from bs4 import BeautifulSoup
 
 _browser_unavailable = False
+UMANG_MAX_SCROLLS = 80
 
 
 def _http_fallback(url):
@@ -30,6 +30,37 @@ def scrape_umang(url):
         driver.get(url)
         wait = WebDriverWait(driver, 20)
         wait.until(lambda d: d.find_elements(By.CSS_SELECTOR, ".scheme-name"))
+
+        previous_count = 0
+        idle_rounds = 0
+        for _ in range(UMANG_MAX_SCROLLS):
+            cards = driver.find_elements(By.CSS_SELECTOR, "div.list.ng-star-inserted")
+            count = len(cards)
+            if count == previous_count:
+                idle_rounds += 1
+            else:
+                idle_rounds = 0
+                previous_count = count
+
+            for selector in (
+                "button.load-more",
+                ".load-more button",
+                "button[aria-label*='more' i]",
+                "a[aria-label*='more' i]",
+            ):
+                for button in driver.find_elements(By.CSS_SELECTOR, selector):
+                    if button.is_displayed() and button.is_enabled():
+                        try:
+                            driver.execute_script("arguments[0].click();", button)
+                            time.sleep(1)
+                        except Exception:
+                            pass
+
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(1)
+
+            if idle_rounds >= 3:
+                break
 
         cards = driver.find_elements(By.CSS_SELECTOR, "div.list.ng-star-inserted")
         for card in cards:

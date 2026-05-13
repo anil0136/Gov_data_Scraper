@@ -40,6 +40,20 @@ document.addEventListener("DOMContentLoaded", () => {
             activeSection = chip.dataset.sectionFilter;
             chips.forEach((item) => item.classList.toggle("is-active", item === chip));
             applyFilters();
+
+            const target = sections.find((section) => section.dataset.section === activeSection);
+            const scrollTarget = activeSection === "all" ? document.querySelector(".dashboard") : target;
+            if (scrollTarget && !scrollTarget.classList.contains("is-hidden")) {
+                requestAnimationFrame(() => {
+                    const sectionHead = scrollTarget.querySelector(".section-head");
+                    const targetElement = sectionHead || scrollTarget;
+                    const targetTop = targetElement.getBoundingClientRect().top + window.scrollY - 12;
+                    window.scrollTo({
+                        top: Math.max(targetTop, 0),
+                        behavior: "smooth",
+                    });
+                });
+            }
         });
     });
 
