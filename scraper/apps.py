@@ -11,7 +11,8 @@ class ScraperConfig(AppConfig):
         command = sys.argv[1] if len(sys.argv) > 1 else ""
 
         if command == "runserver":
-            return os.environ.get("RUN_MAIN") == "true"
+            auto_start = os.environ.get("GOVSCRAPER_AUTO_START", "0").lower()
+            return os.environ.get("RUN_MAIN") == "true" and auto_start in {"1", "true", "yes", "on"}
 
         return "gunicorn" in executable
 

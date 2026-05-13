@@ -46,7 +46,7 @@ def get_client():
             "pymongo is not installed. Add it to the deployment environment before using MongoDB."
         ) from _PYMONGO_IMPORT_ERROR
     if _client is None:
-        _client = MongoClient(settings.MONGODB_URI, serverSelectionTimeoutMS=10000)
+        _client = MongoClient(settings.MONGODB_URI, serverSelectionTimeoutMS=3000)
     return _client
 
 
@@ -97,7 +97,6 @@ def delete_by_id(kind, object_id):
 
 
 def find_records(kind, query=None, sort=None):
-    ensure_indexes()
     cursor = collection(kind).find(query or {})
     if sort:
         cursor = cursor.sort(sort)
@@ -106,14 +105,18 @@ def find_records(kind, query=None, sort=None):
 
 def count_records(kind, query=None):
     try:
-        ensure_indexes()
+        if not query:
+            return collection(kind).estimated_document_count()
         return collection(kind).count_documents(query or {})
     except Exception:
         return 0
 
 
-def latest_records(kind):
+def latest_records(kind, limit=100):
     try:
-        return find_records(kind, sort=[("_id", DESCENDING)])
+        cursor = collection(kind).find({}).sort([("_id", DESCENDING)])
+        if limit:
+            cursor = cursor.limit(limit)
+        return [MongoRecord(kind, document) for document in cursor]
     except Exception:
         return []

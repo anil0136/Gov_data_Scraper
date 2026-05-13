@@ -181,13 +181,17 @@ class SchemeApiTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         endpoints = response.json()["endpoints"]
+        card_endpoints = response.json()["card_endpoints"]
         self.assertIn("umang_schemes", endpoints)
         self.assertIn("government_services", endpoints)
         self.assertIn("myscheme", endpoints)
         self.assertIn("india_portal_schemes", endpoints)
         self.assertIn("scholarships", endpoints)
         self.assertIn("grants", endpoints)
+        self.assertIn("tenders", endpoints)
         self.assertIn("scraper_status", endpoints)
+        self.assertIn("banking_financial_services_and_insurance", card_endpoints)
+        self.assertIn("scholarships", card_endpoints)
 
     def test_government_services_api_returns_saved_rows(self):
         records = [
@@ -210,9 +214,44 @@ class SchemeApiTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["source"], "Government Services")
+        self.assertEqual(payload["api_key"], "government_services")
         self.assertEqual(payload["count"], 1)
         self.assertEqual(payload["results"][0]["title"], "Apply for example service")
         self.assertEqual(payload["results"][0]["url"], "https://example.com/service")
+
+    def test_government_services_api_filters_background_noise(self):
+        records = [
+            MongoRecord(
+                "gov",
+                {
+                    "_id": "gov-1",
+                    "title": "Apply for example service",
+                    "service_type": "Online",
+                    "department": "Example Department",
+                    "description": "Example description",
+                    "url": "https://example.com/service",
+                },
+            ),
+            MongoRecord(
+                "gov",
+                {
+                    "_id": "gov-2",
+                    "title": "HomeAll Categories",
+                    "service_type": "",
+                    "department": "",
+                    "description": "",
+                    "url": "https://example.com/noise",
+                },
+            ),
+        ]
+
+        with patch("scraper.views.latest_records", return_value=records):
+            response = self.client.get("/api/government-services/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["results"][0]["title"], "Apply for example service")
 
     def test_myscheme_api_includes_detail_fields(self):
         records = [
@@ -272,5 +311,55 @@ class SchemeApiTests(SimpleTestCase):
         self.assertEqual(payload["percent"], 50)
         self.assertTrue(payload["is_running"])
         self.assertEqual(payload["current_source"], "GOV")
+
+    def test_card_api_returns_matching_records_with_api_key(self):
+        def records_for_kind(kind):
+            if kind == "myscheme":
+                return [
+                    MongoRecord(
+                        "myscheme",
+                        {
+                            "_id": "myscheme-1",
+                            "title": "Crop insurance support",
+                            "description": "Insurance support for farmers",
+                            "eligibility": "Farmers",
+                            "benefits": "Premium support",
+                            "category": "Agriculture",
+                            "ministry": "Ministry",
+                            "department": "Department",
+                            "level": "Central",
+                            "tags": "farmer crop",
+                            "application_process": "Apply online",
+                            "documents": "Documents",
+                            "references": "References",
+                            "raw_data": {},
+                            "url": "https://example.com/crop",
+                        },
+                    )
+                ]
+            return []
+
+        with patch("scraper.views.latest_records", side_effect=records_for_kind):
+            response = self.client.get("/api/cards/agriculture/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["api_key"], "agriculture")
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["results"][0]["source_key"], "myscheme")
+        self.assertEqual(payload["results"][0]["title"], "Crop insurance support")
+
+    def test_card_api_accepts_api_key_in_url(self):
+        with patch("scraper.views.latest_records", return_value=[]):
+            response = self.client.get("/api/cards/banking_financial_services_and_insurance/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["api_key"], "banking_financial_services_and_insurance")
+
+    def test_unknown_card_api_returns_404(self):
+        response = self.client.get("/api/cards/unknown-card/")
+
+        self.assertEqual(response.status_code, 404)
 
 # Create your tests here.

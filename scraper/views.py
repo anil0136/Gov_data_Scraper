@@ -64,6 +64,164 @@ FILTER_WORDS = (
     "international grants",
 )
 
+API_FIELDS = {
+    "umang": ("id", "title", "description", "category", "department", "url"),
+    "gov": ("id", "title", "service_type", "department", "description", "url"),
+    "myscheme": (
+        "id",
+        "title",
+        "description",
+        "eligibility",
+        "benefits",
+        "category",
+        "ministry",
+        "department",
+        "level",
+        "tags",
+        "application_process",
+        "documents",
+        "references",
+        "raw_data",
+        "url",
+    ),
+    "india": ("id", "title", "description", "ministry", "category", "url"),
+    "scholarships": ("id", "title", "provider", "deadline", "amount", "image_url", "url"),
+    "grants": ("id", "title", "organization", "description", "funding_amount", "url"),
+    "tenders": (
+        "id",
+        "source",
+        "external_id",
+        "title",
+        "organization",
+        "location",
+        "state",
+        "country",
+        "status",
+        "procurement_type",
+        "category",
+        "tender_value",
+        "published_on",
+        "deadline",
+        "description",
+        "source_url",
+        "url",
+    ),
+}
+
+ALL_SCHEME_KINDS = ("umang", "gov", "myscheme", "india")
+SCHEME_AND_OPPORTUNITY_KINDS = ALL_SCHEME_KINDS + ("scholarships", "grants", "tenders")
+
+CARD_APIS = {
+    "banking-financial-services-and-insurance": {
+        "api_key": "banking_financial_services_and_insurance",
+        "title": "Banking, Financial Services and Insurance",
+        "kinds": ALL_SCHEME_KINDS,
+        "keywords": ("bank", "banking", "finance", "financial", "insurance", "loan", "credit", "pension"),
+    },
+    "health-wellness": {
+        "api_key": "health_wellness",
+        "title": "Health & Wellness",
+        "kinds": ALL_SCHEME_KINDS,
+        "keywords": ("health", "healthcare", "wellness", "medical", "medicine", "hospital", "ayush"),
+    },
+    "housing-shelter": {
+        "api_key": "housing_shelter",
+        "title": "Housing & Shelter",
+        "kinds": ALL_SCHEME_KINDS,
+        "keywords": ("housing", "shelter", "house", "home", "awas", "habitat"),
+    },
+    "public-safety-law-justice": {
+        "api_key": "public_safety_law_justice",
+        "title": "Public Safety, Law & Justice",
+        "kinds": ALL_SCHEME_KINDS,
+        "keywords": ("public safety", "law", "justice", "legal", "police", "court", "crime"),
+    },
+    "science-it-communications": {
+        "api_key": "science_it_communications",
+        "title": "Science, IT & Communications",
+        "kinds": ALL_SCHEME_KINDS,
+        "keywords": ("science", "technology", "innovation", "digital", "communication", "communications", "it "),
+    },
+    "skills-employment": {
+        "api_key": "skills_employment",
+        "title": "Skills & Employment",
+        "kinds": ALL_SCHEME_KINDS,
+        "keywords": ("skill", "employment", "training", "job", "livelihood", "apprentice"),
+    },
+    "social-welfare-empowerment": {
+        "api_key": "social_welfare_empowerment",
+        "title": "Social Welfare & Empowerment",
+        "kinds": ALL_SCHEME_KINDS,
+        "keywords": ("social welfare", "welfare", "empowerment", "social security", "disability", "senior citizen"),
+    },
+    "sports-culture": {
+        "api_key": "sports_culture",
+        "title": "Sports & Culture",
+        "kinds": ALL_SCHEME_KINDS,
+        "keywords": ("sports", "sport", "culture", "cultural", "talent", "heritage", "art"),
+    },
+    "transport-infrastructure": {
+        "api_key": "transport_infrastructure",
+        "title": "Transport & Infrastructure",
+        "kinds": ALL_SCHEME_KINDS,
+        "keywords": ("transport", "transportation", "infrastructure", "road", "rail", "vehicle"),
+    },
+    "travel-tourism": {
+        "api_key": "travel_tourism",
+        "title": "Travel & Tourism",
+        "kinds": ALL_SCHEME_KINDS,
+        "keywords": ("travel", "tourism", "tourist", "hospitality"),
+    },
+    "utility-sanitation": {
+        "api_key": "utility_sanitation",
+        "title": "Utility & Sanitation",
+        "kinds": ALL_SCHEME_KINDS,
+        "keywords": ("utility", "sanitation", "water", "drinking water", "sewerage", "electricity"),
+    },
+    "women-and-child": {
+        "api_key": "women_and_child",
+        "title": "Women and Child",
+        "kinds": ALL_SCHEME_KINDS,
+        "keywords": ("women", "woman", "child", "children", "girl", "mother", "family welfare"),
+    },
+    "agriculture": {
+        "api_key": "agriculture",
+        "title": "Agriculture",
+        "kinds": SCHEME_AND_OPPORTUNITY_KINDS,
+        "keywords": ("agriculture", "farmer", "farming", "crop", "kisan", "rural", "fishery", "fisheries"),
+    },
+    "women-programs": {
+        "api_key": "women_programs",
+        "title": "Women Programs",
+        "kinds": SCHEME_AND_OPPORTUNITY_KINDS,
+        "keywords": ("women", "woman", "girl", "female", "mother", "child", "family welfare"),
+    },
+    "research-grants": {
+        "api_key": "research_grants",
+        "title": "Research Grants",
+        "kinds": ("grants", "scholarships", "myscheme", "india"),
+        "keywords": ("research", "grant", "fellowship", "phd", "doctoral", "scientific", "academic", "professor"),
+    },
+    "tenders-rfps": {
+        "api_key": "tenders_rfps",
+        "title": "Tenders/RFPs",
+        "kinds": ("tenders",),
+        "keywords": ("tender", "rfp", "procurement", "bid", "contract"),
+    },
+    "startup-msme": {
+        "api_key": "startup_msme",
+        "title": "Startup/MSME",
+        "kinds": SCHEME_AND_OPPORTUNITY_KINDS,
+        "keywords": ("startup", "start-up", "msme", "business", "entrepreneur", "entrepreneurship", "venture"),
+    },
+    "scholarships": {
+        "api_key": "scholarships",
+        "title": "Scholarships",
+        "kinds": ("scholarships",),
+        "keywords": ("scholarship", "fellowship", "tuition", "student", "education"),
+    },
+}
+
 
 def _clean_text(value):
     return " ".join((value or "").split())
@@ -118,6 +276,29 @@ def _source_url(item):
         return ""
 
     return url
+
+
+def _search_blob(item):
+    values = [
+        getattr(item, "title", ""),
+        getattr(item, "description", ""),
+        getattr(item, "category", ""),
+        getattr(item, "department", ""),
+        getattr(item, "ministry", ""),
+        getattr(item, "service_type", ""),
+        getattr(item, "tags", ""),
+        getattr(item, "eligibility", ""),
+        getattr(item, "benefits", ""),
+        getattr(item, "organization", ""),
+        getattr(item, "provider", ""),
+        getattr(item, "procurement_type", ""),
+    ]
+    return f" {' '.join(_clean_text(value).lower() for value in values)} "
+
+
+def _matches_keywords(item, keywords):
+    blob = _search_blob(item)
+    return any(keyword.lower() in blob for keyword in keywords)
 
 
 def _is_displayable(item):
@@ -183,6 +364,17 @@ def _is_displayable(item):
             and not has_detail
         ):
             return False
+    if kind == "tenders":
+        has_detail = any(
+            [
+                description,
+                _clean_text(getattr(item, "organization", "") or ""),
+                _clean_text(getattr(item, "deadline", "") or ""),
+                _clean_text(getattr(item, "tender_value", "") or ""),
+            ]
+        )
+        if not has_detail:
+            return False
     return True
 
 
@@ -202,11 +394,11 @@ def _card_from_item(item, meta_fields=(), description_field="description"):
     }
 
 
-def _section(title, kind, meta_fields=(), description_field="description"):
+def _section(title, kind, meta_fields=(), description_field="description", display_limit=24):
     total_count = count_records(kind)
     clean_items = [
         _card_from_item(item, meta_fields=meta_fields, description_field=description_field)
-        for item in latest_records(kind)
+        for item in latest_records(kind, limit=display_limit)
         if _is_displayable(item)
     ]
 
@@ -234,16 +426,61 @@ def _serialize_item(item, fields):
     }
 
 
-def _api_response(request, source, kind, fields):
+def _filtered_items(kind, predicate=None):
+    items = []
+    for item in latest_records(kind):
+        if not _is_displayable(item):
+            continue
+        if predicate is not None and not predicate(item):
+            continue
+        items.append(item)
+    return items
+
+
+def _api_response(request, source, kind, fields, api_key=None, predicate=None):
     items = [
         _serialize_item(item, fields)
-        for item in latest_records(kind)
+        for item in _filtered_items(kind, predicate=predicate)
     ]
     return JsonResponse({
         "source": source,
+        "api_key": api_key or kind,
         "count": len(items),
         "results": items,
     })
+
+
+def _card_api_url(request, slug):
+    return _absolute_request_url(request, f"/api/cards/{slug}/")
+
+
+def _card_api_payload(slug):
+    config = CARD_APIS.get(slug)
+    if not config:
+        config = next(
+            (
+                card_config
+                for card_config in CARD_APIS.values()
+                if card_config["api_key"] == slug
+            ),
+            None,
+        )
+    if not config:
+        return None
+
+    results = []
+    for kind in config["kinds"]:
+        for item in _filtered_items(kind, predicate=lambda record, config=config: _matches_keywords(record, config["keywords"])):
+            row = _serialize_item(item, API_FIELDS[kind])
+            row["source_key"] = kind
+            results.append(row)
+
+    return {
+        "source": config["title"],
+        "api_key": config["api_key"],
+        "count": len(results),
+        "results": results,
+    }
 
 
 def api_index(request):
@@ -254,9 +491,14 @@ def api_index(request):
         "india_portal_schemes": _absolute_request_url(request, "/api/india-portal-schemes/"),
         "scholarships": _absolute_request_url(request, "/api/scholarships/"),
         "grants": _absolute_request_url(request, "/api/grants/"),
+        "tenders": _absolute_request_url(request, "/api/tenders/"),
         "scraper_status": _absolute_request_url(request, "/api/scraper-status/"),
     }
-    return JsonResponse({"endpoints": endpoints})
+    card_endpoints = {
+        config["api_key"]: _card_api_url(request, slug)
+        for slug, config in CARD_APIS.items()
+    }
+    return JsonResponse({"endpoints": endpoints, "card_endpoints": card_endpoints})
 
 
 def api_umang_schemes(request):
@@ -264,7 +506,8 @@ def api_umang_schemes(request):
         request,
         "UMANG Schemes",
         "umang",
-        ("id", "title", "description", "category", "department", "url"),
+        API_FIELDS["umang"],
+        api_key="umang_schemes",
     )
 
 
@@ -273,7 +516,8 @@ def api_government_services(request):
         request,
         "Government Services",
         "gov",
-        ("id", "title", "service_type", "department", "description", "url"),
+        API_FIELDS["gov"],
+        api_key="government_services",
     )
 
 
@@ -282,23 +526,8 @@ def api_myscheme(request):
         request,
         "myScheme",
         "myscheme",
-        (
-            "id",
-            "title",
-            "description",
-            "eligibility",
-            "benefits",
-            "category",
-            "ministry",
-            "department",
-            "level",
-            "tags",
-            "application_process",
-            "documents",
-            "references",
-            "raw_data",
-            "url",
-        ),
+        API_FIELDS["myscheme"],
+        api_key="myscheme",
     )
 
 
@@ -307,7 +536,8 @@ def api_india_portal_schemes(request):
         request,
         "India Portal Schemes",
         "india",
-        ("id", "title", "description", "ministry", "category", "url"),
+        API_FIELDS["india"],
+        api_key="india_portal_schemes",
     )
 
 
@@ -316,7 +546,8 @@ def api_scholarships(request):
         request,
         "Scholarships",
         "scholarships",
-        ("id", "title", "provider", "deadline", "amount", "image_url", "url"),
+        API_FIELDS["scholarships"],
+        api_key="scholarships",
     )
 
 
@@ -325,8 +556,26 @@ def api_grants(request):
         request,
         "Grants",
         "grants",
-        ("id", "title", "organization", "description", "funding_amount", "url"),
+        API_FIELDS["grants"],
+        api_key="grants",
     )
+
+
+def api_tenders(request):
+    return _api_response(
+        request,
+        "Tenders/RFPs",
+        "tenders",
+        API_FIELDS["tenders"],
+        api_key="tenders",
+    )
+
+
+def api_card(request, slug):
+    payload = _card_api_payload(slug)
+    if payload is None:
+        return JsonResponse({"error": "Unknown card API."}, status=404)
+    return JsonResponse(payload)
 
 
 def api_scraper_status(request):
